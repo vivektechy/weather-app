@@ -1,0 +1,265 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Advanced Weather App</title>
+    <style>
+        :root {
+            --bg-light: linear-gradient(to top right, #43cea2, #185a9d);
+            --bg-dark: linear-gradient(to top right, #2c3e50, #000000);
+            --text-light: #ffffff;
+            --text-dark: #eeeeee;
+            --card-bg: rgba(255, 255, 255, 0.1);
+            --card-dark: rgba(255, 255, 255, 0.05);
+        }
+
+        body {
+            margin: 0;
+            font-family: 'Segoe UI', sans-serif;
+            background: var(--bg-light);
+            color: var(--text-light);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            padding: 20px;
+            transition: all 0.3s ease;
+        }
+
+        .container {
+            background: var(--card-bg);
+            backdrop-filter: blur(10px);
+            border-radius: 20px;
+            padding: 30px;
+            max-width: 600px;
+            width: 100%;
+            box-shadow: 0 8px 30px rgba(0, 0, 0, 0.2);
+            text-align: center;
+        }
+
+        h1 {
+            font-size: 2rem;
+            margin-bottom: 20px;
+        }
+
+        input {
+            width: 80%;
+            padding: 10px;
+            border-radius: 10px;
+            border: none;
+            font-size: 1rem;
+            margin-bottom: 10px;
+        }
+
+        button {
+            margin: 5px;
+            padding: 10px 15px;
+            border: none;
+            border-radius: 8px;
+            font-weight: bold;
+            cursor: pointer;
+            background-color: #fff;
+            color: #185a9d;
+            transition: all 0.3s ease;
+        }
+
+        button:hover {
+            background-color: #f0f0f0;
+            transform: scale(1.05);
+        }
+
+        .result,
+        .forecast,
+        .recent {
+            margin-top: 20px;
+            font-size: 1rem;
+        }
+
+        .forecast {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(90px, 1fr));
+            gap: 10px;
+            margin-top: 10px;
+        }
+
+        .day-card {
+            background: rgba(255, 255, 255, 0.15);
+            border-radius: 12px;
+            padding: 10px;
+            text-align: center;
+            animation: fadeIn 1s ease;
+        }
+
+        .day-card img {
+            width: 40px;
+            margin-bottom: 5px;
+        }
+
+        .recent p {
+            cursor: pointer;
+            margin: 5px 0;
+        }
+
+        .toggle-dark {
+            position: absolute;
+            top: 15px;
+            right: 20px;
+            background-color: transparent;
+            color: white;
+            font-size: 1.2rem;
+            border: 2px solid white;
+        }
+
+        @media (max-width: 600px) {
+            .container {
+                padding: 20px;
+            }
+        }
+
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+                transform: translateY(20px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        body.dark {
+            background: var(--bg-dark);
+            color: var(--text-dark);
+        }
+
+        body.dark .container {
+            background: var(--card-dark);
+        }
+
+        body.dark button {
+            color: white;
+            background-color: #444;
+        }
+
+        body.dark button:hover {
+            background-color: #555;
+        }
+    </style>
+</head>
+
+<body>
+    <button class="toggle-dark" onclick="toggleTheme()">🌓</button>
+    <div class="container">
+        <h1>🌤 Weather App</h1>
+        <input id="locationInput" type="text" placeholder="Enter city or place" />
+        <br>
+        <button onclick="getWeather()">Get Weather</button>
+        <button onclick="getLocation()">📍 Use My Location</button>
+
+        <div class="result" id="result"></div>
+        <div class="forecast" id="forecast"></div>
+        <div class="recent" id="recentLocations"></div>
+    </div>
+
+    <script>
+        const API_KEY = "5e925d427c174847b58184302251004";
+
+        function toggleTheme() {
+            document.body.classList.toggle("dark");
+        }
+
+        function saveLocation(location) {
+            let recents = JSON.parse(localStorage.getItem("recentLocations")) || [];
+            recents = [location, ...recents.filter(loc => loc !== location)].slice(0, 5);
+            localStorage.setItem("recentLocations", JSON.stringify(recents));
+            displayRecentLocations();
+        }
+
+        function displayRecentLocations() {
+            const recentDiv = document.getElementById("recentLocations");
+            const recents = JSON.parse(localStorage.getItem("recentLocations")) || [];
+            if (recents.length > 0) {
+                recentDiv.innerHTML = "<strong>Recent:</strong>" + recents.map(loc => `<p onclick="searchRecent('${loc}')">${loc}</p>`).join('');
+            }
+        }
+
+        function searchRecent(location) {
+            document.getElementById("locationInput").value = location;
+            getWeather();
+        }
+
+        async function getWeather() {
+            const location = document.getElementById("locationInput").value.trim();
+            if (!location) {
+                alert("Please enter a location");
+                return;
+            }
+            await fetchWeather(location);
+        }
+
+        async function getLocation() {
+            if (navigator.geolocation) {
+                navigator.geolocation.getCurrentPosition(async (position) => {
+                    const coords = `${position.coords.latitude},${position.coords.longitude}`;
+                    await fetchWeather(coords);
+                }, () => {
+                    alert("Location access denied.");
+                });
+            } else {
+                alert("Geolocation not supported");
+            }
+        }
+
+        async function fetchWeather(location) {
+            const result = document.getElementById("result");
+            const forecastDiv = document.getElementById("forecast");
+            result.innerHTML = "🔄 Loading...";
+            forecastDiv.innerHTML = "";
+
+            try {
+                const response = await fetch(`http://api.weatherapi.com/v1/forecast.json?key=${API_KEY}&q=${location}&days=7&aqi=yes`);
+                const data = await response.json();
+
+                if (data.error) {
+                    result.innerHTML = `<span style="color:#fdd">${data.error.message}</span>`;
+                    return;
+                }
+
+                saveLocation(data.location.name);
+
+                const { name, country, localtime } = data.location;
+                const { temp_c, temp_f, wind_kph, condition, air_quality } = data.current;
+
+                result.innerHTML = `
+          <h3>${name}, ${country}</h3>
+          <p>${localtime}</p>
+          <img src="https:${condition.icon}" />
+          <p>${condition.text}</p>
+          <p>🌡 ${temp_c}°C / ${temp_f}°F</p>
+          <p>💨 Wind: ${wind_kph} km/h</p>
+          <p>🌫 AQI (PM2.5): ${air_quality.pm2_5.toFixed(1)}</p>
+        `;
+
+                forecastDiv.innerHTML = data.forecast.forecastday.map(day => `
+          <div class="day-card">
+            <strong>${new Date(day.date).toDateString().split(" ").slice(0, 3).join(" ")}</strong>
+            <img src="https:${day.day.condition.icon}" />
+            <p>${day.day.condition.text}</p>
+            <p>${day.day.avgtemp_c}°C / ${day.day.avgtemp_f}°F</p>
+          </div>
+        `).join("");
+
+            } catch (err) {
+                result.innerHTML = `<span style="color:#fdd">Error fetching weather data.</span>`;
+            }
+        }
+
+        // On load
+        displayRecentLocations();
+    </script>
+</body>
+
+</html>
